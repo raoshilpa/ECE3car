@@ -1,0 +1,150 @@
+
+#include <ECE3.h>
+
+const int left_nslp_pin=31; // nslp ==> awake & ready for PWM
+const int left_dir_pin=29;
+const int left_pwm_pin=40;
+const int right_nslp_pin=11; // car doesn't work if it's set to 31
+const int right_dir_pin=30;
+const int right_pwm_pin=39;
+
+const int LED_RF = 41;
+uint16_t sensorValues[8];
+uint16_t minArr[8] = {619,595,572,504,618,618,712,643};
+uint16_t labMinArr[8] = {642, 618, 618, 595, 666, 642, 713, 737}; // new minimums taken on white in the lab; more minimums available in sheet for further testing
+uint16_t maxArr[8] = {1709,1780,1928,1922.8,1882,1882,1788,1857};
+int prevError = 0;
+bool turn = false;
+bool enteredDonutModeBefore = false;
+bool endNextTime = false;
+int currSum = 0;
+
+void setup() {
+// put your setup code here, to run once:
+  pinMode(left_nslp_pin,OUTPUT);
+  pinMode(left_dir_pin,OUTPUT);
+  pinMode(left_pwm_pin,OUTPUT);
+
+  pinMode(right_nslp_pin,OUTPUT);
+  pinMode(right_dir_pin,OUTPUT);
+  pinMode(right_pwm_pin,OUTPUT);
+  
+        // digitalWrite versus pinMode?
+
+  // LEFT WHEEL
+  digitalWrite(left_dir_pin,LOW); // LOW = FORWARD, HIGH = BACKWARD
+  digitalWrite(left_nslp_pin,HIGH); // LOW = STOPS, HIGH = STARTS
+
+  // RIGHT WHEEL
+  digitalWrite(right_dir_pin,LOW); // LOW = FORWARD, HIGH = BACKWARD
+  digitalWrite(right_nslp_pin,HIGH); // LOW = STOPS, HIGH = STARTS
+  
+
+  pinMode(LED_RF, OUTPUT);
+  
+  ECE3_Init();
+
+// set the data rate in bits/second for serial data transmission
+  Serial.begin(9600);
+  delay(2000); //Wait 2 seconds before starting 
+  
+}
+
+// analogWrite(pin_number, duty_cycle)
+
+void loop() {
+
+  ECE3_read_IR(sensorValues);
+
+  // check for turn logic
+  // if 2500s, set turn to true
+  // if true, digitalWrite(left_dir_pin,LOW); // LOW = FORWARD, HIGH = BACKWARD
+  // when to set to false? when x # of turns
+  // 30 is a dud value until I experiment with the car in lab tomorrow
+
+  if (enteredDonutModeBefore == true) {
+    digitalWrite(left_dir_pin,LOW); // reverse direction
+    endNextTime = true;
+  } 
+  
+  // Sensor fusion
+  for (int mv = 0; mv < 8; mv++) {
+    sensorValues[mv] - labMinArr[mv];
+    if (sensorValues[mv] != 0) {
+      sensorValues[mv] = sensorValues[mv] * 1000 / maxArr[mv]; // sensor fusion. am i using the max array correctly?
+    }
+  }
+
+  int error;
+  float kp = 0.02; // 0.0119
+  float kd = 0.0952; // 8 * 0.0119
+
+  error = (-8*sensorValues[0]-4*sensorValues[1]-2*sensorValues[2]-1*sensorValues[3]+1*sensorValues[4]+2*sensorValues[5]+4*sensorValues[6]+8*sensorValues[7])*0.25; // debug error term
+//    Serial.println(error);
+
+  int oldSum = currSum;
+  currSum = sensorValues[0]+sensorValues[1]+sensorValues[2]+sensorValues[3]+sensorValues[4]+sensorValues[5]+sensorValues[6]+sensorValues[7]; // update currSum with new sensor reading
+  
+  if (currSum > 6000 && oldSum > 6000) { // if two consecutive lines sum up to > 6000
+    turn = true;
+  }
+
+  if (turn == true && enteredDonutModeBefore == false) {
+
+    analogWrite(left_pwm_pin,0);
+    analogWrite(right_pwm_pin,0);
+
+    delay(200);
+
+    digitalWrite(left_dir_pin,HIGH); // LOW = FORWARD, HIGH = BACKWARD, so we reverse direction of left wheel
+    analogWrite(left_pwm_pin,50);
+    analogWrite(right_pwm_pin,52);
+
+    delay(900);
+
+    turn = false;
+    enteredDonutModeBefore = true;
+       
+  } else if (turn == true && enteredDonutModeBefore == true) {
+      if (endNextTime) {
+        analogWrite(left_pwm_pin,0);
+        analogWrite(right_pwm_pin,0);
+        return;
+      }
+  }
+
+  prevError = error;
+  int derivError = error - prevError;
+  
+  int leftBaseSpd = 50;
+  int rightBaseSpd = 52;
+
+//  Serial.println(error);
+  analogWrite(left_pwm_pin,leftBaseSpd - error * kp + derivError * kd);
+  analogWrite(right_pwm_pin,rightBaseSpd + error * kp + derivError * kd);
+
+}
+
+// NORMALIZING CURVE:
+  // read in 8 values
+  // subtract min [619,595,572,504,618,618,712,643] of this array[0:7] from readInArray[0:7]
+  // if value = 0 then 0, else value * 1000 / max[1709,1780,1928,1922.8,1882,1882,1788,1857]
+
+// perform weighting scheme. this is where we fuse the sensors together.
+// basic if-else statement: if weight = certain value, move left or right according to our calibration
+// INSIDE LOOP: Basic if statement. If each sensor reading really low (so it's at end of track) stop, turn motors opposite, do donut, exit loop
+
+// can use led light for debugging purposes:
+  // const int LED_RF = 41;
+  // digitalWrite(LED_RF, HIGH);
+
+// PID? Baud rate?
+// account for IR interference?
+
+
+// ------- want to account for IR interference
+
+
+// experiment with kp values. 
+// have both motors running ....
+// if error is something
