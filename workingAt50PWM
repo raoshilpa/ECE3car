@@ -76,8 +76,8 @@ void loop() {
   }
 
   int error;
-  float kp = 0.02; // 0.0119
-  float kd = 0.0952; // 8 * 0.0119
+  float kp = 0.028; // 0.0119
+  float kd = 0.0961; // 8 * 0.0119
 
   error = (-8*sensorValues[0]-4*sensorValues[1]-2*sensorValues[2]-1*sensorValues[3]+1*sensorValues[4]+2*sensorValues[5]+4*sensorValues[6]+8*sensorValues[7])*0.25; // debug error term
 //    Serial.println(error);
@@ -100,7 +100,7 @@ void loop() {
     analogWrite(left_pwm_pin,50);
     analogWrite(right_pwm_pin,52);
 
-    delay(900);
+    delay(1000);
 
     turn = false;
     enteredDonutModeBefore = true;
@@ -124,27 +124,3 @@ void loop() {
   analogWrite(right_pwm_pin,rightBaseSpd + error * kp + derivError * kd);
 
 }
-
-// NORMALIZING CURVE:
-  // read in 8 values
-  // subtract min [619,595,572,504,618,618,712,643] of this array[0:7] from readInArray[0:7]
-  // if value = 0 then 0, else value * 1000 / max[1709,1780,1928,1922.8,1882,1882,1788,1857]
-
-// perform weighting scheme. this is where we fuse the sensors together.
-// basic if-else statement: if weight = certain value, move left or right according to our calibration
-// INSIDE LOOP: Basic if statement. If each sensor reading really low (so it's at end of track) stop, turn motors opposite, do donut, exit loop
-
-// can use led light for debugging purposes:
-  // const int LED_RF = 41;
-  // digitalWrite(LED_RF, HIGH);
-
-// PID? Baud rate?
-// account for IR interference?
-
-
-// ------- want to account for IR interference
-
-
-// experiment with kp values. 
-// have both motors running ....
-// if error is something
